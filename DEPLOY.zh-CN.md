@@ -50,8 +50,12 @@ git checkout main && git reset --hard upstream/main
 git push --force-with-lease origin main
 ```
 
-> ⚠️ 记得在仓库 `Settings → Branches` 把默认分支改成 `dev`，
-> 否则 GitHub 的 Sync fork 按钮和 PR 默认基准都会指向 `main`。
+> ⚠️ **默认分支保持 `main`，不要改成 `dev`。**
+> 上游仓库自己也有一条 `dev` 分支（跟你的定制毫无关系，别去同步它）。
+> GitHub 的 `Sync fork` 按钮只同步默认分支，默认分支留在 `main` 才能让 `Upstream Sync`
+> 干净地把 `main` 对齐上游；改成 `dev` 反而可能把上游的 `dev` 混进来。
+>
+> 代价是：手动开 PR 时 GitHub 默认基准是 `main`，记得手动把 base 切成 `dev`。
 
 ---
 
