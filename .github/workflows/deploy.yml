@@ -1,0 +1,108 @@
+name: Deploy Temp Email
+
+# 一键部署：D1 自动建库/迁库 -> 生成 wrangler.toml -> 部署 Worker（含前端静态资源）
+# 需要的仓库 Secrets: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN
+# 可选 Secrets: JWT_SECRET, ADMIN_PASSWORDS, SITE_PASSWORDS
+# 可选 Variables: WORKER_NAME, MAIL_DOMAINS, WORKER_ROUTES, D1_DATABASE_NAME, D1_DATABASE_ID, ...
+
+on:
+  workflow_dispatch:
+    inputs:
+      d1_database_name:
+        description: "D1 数据库名（不存在则自动创建，已存在则复用）"
+        required: false
+        default: "cloudflare_temp_email"
+      with_frontend:
+        description: "是否把前端静态资源一起打进 Worker"
+        required: false
+        type: choice
+        options: ["true", "false"]
+        default: "true"
+      run_migration:
+        description: "是否执行 D1 迁移"
+        required: false
+        type: choice
+        options: ["true", "false"]
+        default: "true"
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - "frontend/**"
+      - "db/**"
+      - "scripts/**"
+      - ".github/workflows/deploy.yml"
+
+concurrency:
+  group: deploy-temp-email
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      # ---- 非敏感配置：优先读仓库 Variables，其次读 workflow 输入，最后是内置默认值 ----
+      WORKER_NAME: ${{ vars.WORKER_NAME || 'cloudflare-temp-email' }}
+      MAIL_DOMAINS: ${{ vars.MAIL_DOMAINS || '["ventiecho.com"]' }}
+      DEFAULT_DOMAINS: ${{ vars.DEFAULT_DOMAINS || '' }}
+      RANDOM_SUBDOMAIN_DOMAINS: ${{ vars.RANDOM_SUBDOMAIN_DOMAINS || '' }}
+      RANDOM_SUBDOMAIN_LENGTH: ${{ vars.RANDOM_SUBDOMAIN_LENGTH || '8' }}
+      ADDRESS_PREFIX: ${{ vars.ADDRESS_PREFIX || 'tmp' }}
+      WORKER_ROUTES: ${{ vars.WORKER_ROUTES || '["mail.ventiecho.com"]' }}
+      ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH: ${{ vars.ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH || 'true' }}
+      CLEANUP_CRON: ${{ vars.CLEANUP_CRON || '' }}
+      D1_DATABASE_NAME: ${{ inputs.d1_database_name || vars.D1_DATABASE_NAME || 'cloudflare_temp_email' }}
+      D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID || '' }}
+      USE_WORKER_ASSETS: ${{ inputs.with_frontend || 'true' }}
+      FRONTEND_URL: ${{ vars.FRONTEND_URL || '' }}
+      # ---- 敏感配置 ----
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      ADMIN_PASSWORDS: ${{ secrets.ADMIN_PASSWORDS }}
+      SITE_PASSWORDS: ${{ secrets.SITE_PASSWORDS }}
+    steps:
+      - name: 校验必需 Secrets
+        run: |
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::缺少 Secret: CLOUDFLARE_ACCOUNT_ID"; exit 1
+          fi
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::缺少 Secret: CLOUDFLARE_API_TOKEN"; exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10
+          run_install: false
+
+      - name: 安装 Worker 依赖（提供 wrangler）
+        run: cd worker && pnpm install --no-frozen-lockfile
+
+      - name: D1 建库 / 复用
+        run: bash scripts/d1-setup.sh
+
+      - name: 构建前端静态资源
+        if: ${{ env.USE_WORKER_ASSETS == 'true' }}
+        run: cd frontend && pnpm install --no-frozen-lockfile && pnpm build:pages
+
+      - name: 生成 wrangler.toml
+        run: node scripts/gen-wrangler.mjs
+
+      - name: D1 迁移
+        if: ${{ inputs.run_migration != 'false' }}
+        run: bash scripts/d1-migrate.sh
+
+      - name: 部署 Worker
+        run: cd worker && pnpm run deploy

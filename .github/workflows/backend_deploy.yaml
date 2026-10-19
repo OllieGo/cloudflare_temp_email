@@ -10,7 +10,26 @@ on:
   workflow_dispatch:
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      has_config: ${{ steps.check.outputs.has_config }}
+    steps:
+      - name: Check BACKEND_TOML
+        id: check
+        run: |
+          if [ -n "$BACKEND_TOML" ]; then
+            echo "has_config=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_config=false" >> $GITHUB_OUTPUT
+            echo "::warning::未配置 Secret BACKEND_TOML，跳过该工作流（请使用 Deploy Temp Email 工作流）"
+          fi
+        env:
+          BACKEND_TOML: ${{ secrets.BACKEND_TOML }}
+
   deploy:
+    needs: check
+    if: ${{ needs.check.outputs.has_config == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
