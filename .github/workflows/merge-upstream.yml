@@ -1,7 +1,13 @@
-name: Merge Upstream Into Dev
+name: Merge Upstream Into Cloudflare
 
 # main 分支由上游的 Upstream Sync 工作流自动覆盖成上游最新版。
-# 本工作流把 main 的更新以 PR 形式合并进 dev，避免在 dev 上直接 force push 冲掉定制。
+# 本工作流把 main 的更新以 PR 形式合并进 cloudflare（你的定制/部署分支），
+# 避免在 cloudflare 上直接 force push 冲掉定制。
+#
+# 分支约定：
+#   main       = 上游镜像（由 Upstream Sync 自动覆盖）
+#   cloudflare = 定制分支 + 部署触发分支
+#   （上游自己也有一条 dev 分支，所以刻意不用 dev 这个名字，避免同名混淆）
 #
 # 前置条件（只需设置一次）：
 #   Settings → Actions → General → Workflow permissions
@@ -18,7 +24,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: merge-upstream-into-dev
+  group: merge-upstream-into-cloudflare
   cancel-in-progress: false
 
 jobs:
@@ -29,21 +35,21 @@ jobs:
       pull-requests: write
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Checkout dev
+      - name: Checkout cloudflare
         uses: actions/checkout@v6
         with:
-          ref: dev
+          ref: cloudflare
           fetch-depth: 0
 
-      - name: 判断 main 是否领先 dev
+      - name: 判断 main 是否领先 cloudflare
         id: check
         run: |
           git fetch origin main:main --depth=200 || true
-          AHEAD=$(git rev-list --count dev..main || echo 0)
-          BEHIND=$(git rev-list --count main..dev || echo 0)
+          AHEAD=$(git rev-list --count cloudflare..main || echo 0)
+          BEHIND=$(git rev-list --count main..cloudflare || echo 0)
           echo "ahead=${AHEAD}" >> "$GITHUB_OUTPUT"
           echo "behind=${BEHIND}" >> "$GITHUB_OUTPUT"
-          echo "main 领先 dev ${AHEAD} 个提交；dev 独有 ${BEHIND} 个提交"
+          echo "main 领先 cloudflare ${AHEAD} 个提交；cloudflare 独有 ${BEHIND} 个提交"
 
       - name: 创建或更新合并 PR
         if: ${{ steps.check.outputs.ahead != '0' }}
@@ -51,28 +57,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          TITLE="chore: 合并上游更新 (main → dev)"
-          EXISTING=$(gh pr list --base dev --head main --state open --json number --jq '.[0].number' || true)
+          TITLE="chore: 合并上游更新 (main → cloudflare)"
+          EXISTING=$(gh pr list --base cloudflare --head main --state open --json number --jq '.[0].number' || true)
           if [ -n "$EXISTING" ]; then
             echo "已存在 PR #${EXISTING}，跳过创建"
             gh pr comment "$EXISTING" --body "上游有新的提交，合并前请确认冲突已解决。"
             exit 0
           fi
           {
-            echo "由 \`Merge Upstream Into Dev\` 工作流自动创建。"
+            echo "由 \`Merge Upstream Into Cloudflare\` 工作流自动创建。"
             echo ""
-            echo "上游有新提交需要合并进 dev。合并前请检查："
+            echo "上游有新提交需要合并进 cloudflare。合并前请检查："
             echo ""
             echo "- \`worker/\`、\`frontend/\`、\`db/\` 有变更时，合并后会自动触发一次部署"
             echo "- 冲突文件大概率是 \`scripts/\`、\`DEPLOY.zh-CN.md\`、\`.github/workflows/deploy.yml\`（你自己的定制）"
             echo "- 上游若改了 \`db/*.sql\`，留意部署日志里的 D1 迁移步骤"
           } > /tmp/pr_body.md
           gh pr create \
-            --base dev \
+            --base cloudflare \
             --head main \
             --title "$TITLE" \
             --body-file /tmp/pr_body.md
 
       - name: 无需合并
         if: ${{ steps.check.outputs.ahead == '0' }}
-        run: echo "main 与 dev 之间没有新提交，无需合并"
+        run: echo "main 与 cloudflare 之间没有新提交，无需合并"

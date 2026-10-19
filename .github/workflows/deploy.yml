@@ -3,8 +3,8 @@ name: Deploy Temp Email
 # 一键部署：D1 自动建库/迁库 -> 生成 wrangler.toml -> 部署 Worker（含前端静态资源）
 #
 # 分支约定：
-#   main = 上游镜像（由 Upstream Sync 自动覆盖，禁止放定制提交）
-#   dev  = 你的定制分支，也是本工作流的部署触发分支
+#   main       = 上游镜像（由 Upstream Sync 自动覆盖，禁止放定制提交）
+#   cloudflare = 你的定制分支，也是本工作流的部署触发分支
 #
 # 需要的仓库 Secrets: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN
 # 可选 Secrets: JWT_SECRET, ADMIN_PASSWORDS, SITE_PASSWORDS
@@ -29,10 +29,11 @@ on:
         type: choice
         options: ["true", "false"]
         default: "true"
-# ⚠️ 部署分支是 dev，不是 main。
+# ⚠️ 部署分支是 cloudflare，不是 main。
 # main 由上游的 Upstream Sync 工作流每周自动覆盖成上游版本，任何定制提交放 main 都会被冲掉。
+# 分支名刻意叫 cloudflare 而不是 dev —— 上游自己也有一条 dev 分支，同名会混淆甚至被误同步。
   push:
-    branches: [dev]
+    branches: [cloudflare]
     paths:
       - "worker/**"
       - "frontend/**"

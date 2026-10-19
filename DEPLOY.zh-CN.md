@@ -16,46 +16,48 @@
 | 分支 | 角色 | 谁在写 |
 | --- | --- | --- |
 | `main` | 上游镜像，保持与 `dreamhunter2333/cloudflare_temp_email` 一致 | `Upstream Sync` 自动同步／GitHub 的 Sync fork 按钮 |
-| `dev` | 你的定制分支，**也是部署触发分支** | 你（和我） |
+| `cloudflare` | 你的定制分支，**也是部署触发分支** | 你（和我） |
+
+> 为什么不叫 `dev`？**上游自己也有一条 `dev` 分支**，跟你的定制毫无关系。
+> 用 `cloudflare` 这个独有名字，从根上避免同名混淆与误同步。
 
 ### 上游有更新时怎么合并
 
 ```
-上游 dreamhunter2333 ──(Upstream Sync, 每周一)──▶ main ──(PR: main → dev)──▶ dev ──▶ 自动部署
+上游 dreamhunter2333 ──(Upstream Sync, 每周一)──▶ main ──(PR: main → cloudflare)──▶ cloudflare ──▶ 自动部署
 ```
 
 1. `main` 由上游同步工作流自动更新（也可以手动点仓库首页的 `Sync fork`）。
-2. `Merge Upstream Into Dev` 工作流检测到 `main` 领先 `dev` 后，**自动开一个 PR**（标题 `chore: 合并上游更新 (main → dev)`）。
+2. `Merge Upstream Into Cloudflare` 工作流检测到 `main` 领先 `cloudflare` 后，**自动开一个 PR**（标题 `chore: 合并上游更新 (main → cloudflare)`）。
    已存在同名 PR 时不会重复创建，只会追加一条评论。
 3. 你 review 这个 PR：冲突通常集中在 `scripts/`、`DEPLOY.zh-CN.md`、`.github/workflows/deploy.yml` 这几个你改过的文件。
-4. 合并 PR → `dev` 触发 `Deploy Temp Email` → 自动重新部署。
+4. 合并 PR → `cloudflare` 触发 `Deploy Temp Email` → 自动重新部署。
 
 > 想手动合并也可以：
 >
 > ```bash
-> git checkout dev
+> git checkout cloudflare
 > git fetch upstream main
 > git merge upstream/main        # 或 git merge origin/main
-> # 解决冲突后 git push origin dev
+> # 解决冲突后 git push origin cloudflare
 > ```
 
 ### 首次切换到这套结构的命令
 
 ```bash
-git checkout -b dev main        # 从当前 main 切出 dev
-git push -u origin dev          # 推上去
-# main 还原成纯上游镜像（会丢掉你在 main 上的定制提交，它们已经在 dev 里了）
+git checkout -b cloudflare main    # 从当前 main 切出定制分支
+git push -u origin cloudflare      # 推上去
+# main 还原成纯上游镜像（会丢掉你在 main 上的定制提交，它们已经在 cloudflare 里了）
 git fetch upstream main
 git checkout main && git reset --hard upstream/main
 git push --force-with-lease origin main
 ```
 
-> ⚠️ **默认分支保持 `main`，不要改成 `dev`。**
-> 上游仓库自己也有一条 `dev` 分支（跟你的定制毫无关系，别去同步它）。
+> ⚠️ **默认分支保持 `main` 不要改。**
 > GitHub 的 `Sync fork` 按钮只同步默认分支，默认分支留在 `main` 才能让 `Upstream Sync`
-> 干净地把 `main` 对齐上游；改成 `dev` 反而可能把上游的 `dev` 混进来。
+> 干净地把 `main` 对齐上游；改成 `cloudflare` 会让同步目标错位。
 >
-> 代价是：手动开 PR 时 GitHub 默认基准是 `main`，记得手动把 base 切成 `dev`。
+> 代价是：手动开 PR 时 GitHub 默认基准是 `main`，记得手动把 base 切成 `cloudflare`。
 
 ---
 
