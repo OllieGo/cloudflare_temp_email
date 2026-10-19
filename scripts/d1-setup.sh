@@ -11,7 +11,6 @@ API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/d
 
 echo "::group::D1 数据库: ${DB_NAME}"
 
-# 1) 已经直接指定了 database_id 就跳过查找
 if [[ -n "${D1_DATABASE_ID:-}" ]]; then
     echo "使用已指定的 D1_DATABASE_ID=${D1_DATABASE_ID}"
 else
@@ -21,7 +20,8 @@ else
         -H "Content-Type: application/json")"
 
     if ! echo "${LIST}" | jq -e '.success == true' >/dev/null 2>&1; then
-        echo "::error::读取 D1 列表失败，请检查 API Token 是否具备 D1 权限"
+        echo "::error::读取 D1 列表失败。请确认 API Token 具备 Account -> D1 -> Edit 权限；"
+        echo "::error::若不想给 D1 权限，可在仓库 Variables 里直接填 D1_DATABASE_ID 绕过本步骤。"
         echo "${LIST}"
         exit 1
     fi

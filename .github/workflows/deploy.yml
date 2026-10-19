@@ -100,9 +100,33 @@ jobs:
       - name: 生成 wrangler.toml
         run: node scripts/gen-wrangler.mjs
 
+      # 需要 Token 具备 D1 权限；没有也不影响部署，稍后用 Worker 管理端 API 建表
       - name: D1 迁移
         if: ${{ inputs.run_migration != 'false' }}
+        continue-on-error: true
         run: bash scripts/d1-migrate.sh
 
       - name: 部署 Worker
         run: cd worker && pnpm run deploy
+
+      # 通过 Worker 自带的 /admin/db_initialize 建表，不依赖 D1 API 权限，幂等安全
+      - name: 初始化数据库（经 Worker 管理端 API）
+        continue-on-error: true
+        run: |
+          DOMAIN="$(node -e 'try{console.log((JSON.parse(process.env.WORKER_ROUTES||"[]"))[0]||"")}catch(e){console.log("")}')"
+          PWD0="$(node -e 'try{console.log((JSON.parse(process.env.ADMIN_PASSWORDS||"[]"))[0]||"")}catch(e){console.log("")}')"
+          if [ -z "$DOMAIN" ] || [ -z "$PWD0" ]; then
+            echo "::warning::跳过数据库初始化：缺少对外域名或管理员密码"
+            exit 0
+          fi
+          for i in 1 2 3 4 5; do
+            if curl -fsS --max-time 30 -X POST "https://${DOMAIN}/admin/db_initialize" \
+                 -H "x-admin-auth: ${PWD0}" -H 'Content-Type: application/json'; then
+              echo ""
+              echo "✅ 数据库已初始化"
+              exit 0
+            fi
+            echo "第 $i 次失败，等待 20s（自定义域名的 DNS 可能还没生效）"
+            sleep 20
+          done
+          echo "::warning::自动初始化失败，请到 https://${DOMAIN}/admin 的「快速设置 → 数据库」手动点一次初始化"
