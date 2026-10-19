@@ -8,6 +8,53 @@
 
 ---
 
+## 0.1 分支策略（fork 用户必读）
+
+上游仓库自带一条 `Upstream Sync` 工作流，**每周一自动把你的 `main` 覆盖成上游最新版**。
+所以 **定制提交绝对不能放 `main`**，否则会被静默冲掉。约定如下：
+
+| 分支 | 角色 | 谁在写 |
+| --- | --- | --- |
+| `main` | 上游镜像，保持与 `dreamhunter2333/cloudflare_temp_email` 一致 | `Upstream Sync` 自动同步／GitHub 的 Sync fork 按钮 |
+| `dev` | 你的定制分支，**也是部署触发分支** | 你（和我） |
+
+### 上游有更新时怎么合并
+
+```
+上游 dreamhunter2333 ──(Upstream Sync, 每周一)──▶ main ──(PR: main → dev)──▶ dev ──▶ 自动部署
+```
+
+1. `main` 由上游同步工作流自动更新（也可以手动点仓库首页的 `Sync fork`）。
+2. `Merge Upstream Into Dev` 工作流检测到 `main` 领先 `dev` 后，**自动开一个 PR**（标题 `chore: 合并上游更新 (main → dev)`）。
+   已存在同名 PR 时不会重复创建，只会追加一条评论。
+3. 你 review 这个 PR：冲突通常集中在 `scripts/`、`DEPLOY.zh-CN.md`、`.github/workflows/deploy.yml` 这几个你改过的文件。
+4. 合并 PR → `dev` 触发 `Deploy Temp Email` → 自动重新部署。
+
+> 想手动合并也可以：
+>
+> ```bash
+> git checkout dev
+> git fetch upstream main
+> git merge upstream/main        # 或 git merge origin/main
+> # 解决冲突后 git push origin dev
+> ```
+
+### 首次切换到这套结构的命令
+
+```bash
+git checkout -b dev main        # 从当前 main 切出 dev
+git push -u origin dev          # 推上去
+# main 还原成纯上游镜像（会丢掉你在 main 上的定制提交，它们已经在 dev 里了）
+git fetch upstream main
+git checkout main && git reset --hard upstream/main
+git push --force-with-lease origin main
+```
+
+> ⚠️ 记得在仓库 `Settings → Branches` 把默认分支改成 `dev`，
+> 否则 GitHub 的 Sync fork 按钮和 PR 默认基准都会指向 `main`。
+
+---
+
 ## 0. 架构
 
 ```
