@@ -92,9 +92,11 @@ L.push("keep_vars = true");
 L.push("");
 
 if (routes.length) {
+    // 显式带上 zone_name，避免 Token 有多个/受限 zone 时报 "Can't infer zone from route"(10082)
+    const zoneName = env("WORKER_ROUTE_ZONE", mailDomains[0]);
     L.push("routes = [");
     for (const r of routes) {
-        L.push(`\t{ pattern = "${q(r)}", custom_domain = true },`);
+        L.push(`\t{ pattern = "${q(r)}", custom_domain = true, zone_name = "${q(zoneName)}" },`);
     }
     L.push("]");
     L.push("");

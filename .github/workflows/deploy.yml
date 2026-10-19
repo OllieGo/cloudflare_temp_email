@@ -53,6 +53,7 @@ jobs:
       RANDOM_SUBDOMAIN_LENGTH: ${{ vars.RANDOM_SUBDOMAIN_LENGTH || '8' }}
       ADDRESS_PREFIX: ${{ vars.ADDRESS_PREFIX || 'tmp' }}
       WORKER_ROUTES: ${{ vars.WORKER_ROUTES || '["mail.ventiecho.com"]' }}
+      WORKER_ROUTE_ZONE: ${{ vars.WORKER_ROUTE_ZONE || 'ventiecho.com' }}
       ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH: ${{ vars.ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH || 'true' }}
       CLEANUP_CRON: ${{ vars.CLEANUP_CRON || '' }}
       D1_DATABASE_NAME: ${{ inputs.d1_database_name || vars.D1_DATABASE_NAME || 'cloudflare_temp_email' }}
