@@ -124,6 +124,9 @@ jobs:
                  -H "x-admin-auth: ${PWD0}" -H 'Content-Type: application/json'; then
               echo ""
               echo "✅ 数据库已初始化"
+              # 幂等地执行版本迁移（如 address.password / raw_mails.metadata 等列）
+              curl -fsS --max-time 30 -X POST "https://${DOMAIN}/admin/db_migration" \
+                   -H "x-admin-auth: ${PWD0}" -H 'Content-Type: application/json' || true
               exit 0
             fi
             echo "第 $i 次失败，等待 20s（自定义域名的 DNS 可能还没生效）"
