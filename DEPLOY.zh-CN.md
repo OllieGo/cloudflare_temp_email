@@ -65,6 +65,26 @@ Cloudflare Email Routing **不会把 apex 配置继承给子域名**，`*.ventie
 
 这样 `*.ventiecho.com` 与 apex 落到同一个 Email Routing zone，由 apex 的 Catch-all 交给 Worker 处理，CF 侧无需额外配置。
 
+### 1.4 用脚本一键收尾（推荐）
+
+上面 1.2 / 1.3 的手工操作，仓库里已经有脚本代劳：
+
+```bash
+export CLOUDFLARE_API_TOKEN=xxx
+export CLOUDFLARE_ACCOUNT_ID=1cd574f79c73c28ba9000f98a492abbd
+export MAIL_DOMAINS='["ventiecho.com"]'
+python3 scripts/setup_email_routing.py
+```
+
+脚本按顺序做三件事，任何一步失败只告警、不中断：
+
+1. 尝试调用 API 启用 Email Routing（**需要 Token 带 `Zone → Email Routing → Edit`**；没有权限会提示去控制台点一下）
+2. 把 apex 的 MX 原样复制成主机名 `*` 的通配 MX（已存在则跳过，幂等）
+3. 把 Catch-all 规则改成 `Send to Worker → cloudflare-temp-email`
+
+> 常见坑：Email Routing 还没启用时，第 3 步会返回 `409 Invalid rule operation`。
+> 去控制台 `Email Routing → 启用`，再重跑脚本即可。
+
 ---
 
 ## 2. GitHub 仓库配置
