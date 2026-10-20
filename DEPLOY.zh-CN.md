@@ -157,7 +157,7 @@ python3 scripts/setup_email_routing.py
 | ----------------- | ------------------------------------- | ----------------- |
 | `JWT_SECRET`      | 签发地址 JWT 的密钥，变了会让已发放邮箱的 token 全部失效    | 32 位随机串           |
 | `ADMIN_PASSWORDS` | 管理后台 `/admin` 密码，**JSON 数组**          | `["MyStrongPwd"]` |
-| `SITE_PASSWORDS`  | 站点私密密码，设了之后全站要带 `x-custom-auth`，不设则公开 | `["123456"]`      |
+| `SITE_PASSWORDS`  | 站点私密密码。**默认不生效**（`ENABLE_SITE_PASSWORD` 默认 false），网页端开放 | `["123456"]`      |
 
 ### Variables（可选，都有默认值）
 
@@ -234,7 +234,8 @@ curl -X POST https://mail.ventiecho.com/api/new_address \
   -d '{"enableRandomSubdomain":true}'
 ```
 
-需要 `ENABLE_USER_CREATE_EMAIL = true`（默认开）；开了站点密码的请求要带 `x-custom-auth`。
+需要 `ENABLE_USER_CREATE_EMAIL = true`（默认开）。网页端默认开放、无需鉴权，防盗刷靠 Cloudflare WAF 限流规则；
+若把 Variable `ENABLE_SITE_PASSWORD` 设为 `true`，则请求要额外带 `x-custom-auth`。
 
 ### 5.3 批量脚本
 

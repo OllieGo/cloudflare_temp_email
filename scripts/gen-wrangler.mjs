@@ -74,7 +74,13 @@ const jwtSecret = env("JWT_SECRET") || (console.log("::warning::未配置 JWT_SE
 const adminPasswords = list("ADMIN_PASSWORDS", []);
 const generatedAdminPassword = adminPasswords.length === 0 ? rand(12) : null;
 const finalAdminPasswords = adminPasswords.length ? adminPasswords : [generatedAdminPassword];
-const sitePasswords = list("SITE_PASSWORDS", []);
+// 站点访问密码：默认关闭（网页端开放，不弹密码框，防盗刷交给 Cloudflare WAF 限流）。
+// 需要全站上锁时，在 deploy.yml 的 env 里传 ENABLE_SITE_PASSWORD=true 即可，无需改代码。
+const sitePasswordEnabled = bool("ENABLE_SITE_PASSWORD", false);
+const sitePasswords = sitePasswordEnabled ? list("SITE_PASSWORDS", []) : [];
+if (!sitePasswordEnabled && list("SITE_PASSWORDS", []).length) {
+    console.log("::notice::已配置 SITE_PASSWORDS 但 ENABLE_SITE_PASSWORD 未开启，本次部署不启用站点密码（网页端开放）");
+}
 
 const useAssets = bool("USE_WORKER_ASSETS", true);
 const enableSubdomainMatch = bool("ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH", true);

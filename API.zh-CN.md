@@ -11,10 +11,13 @@
 
 | 接口 | 鉴权 | 用途 | 前缀 |
 | --- | --- | --- | --- |
-| `POST /api/new_address` | **站点密码** `x-custom-auth`（已开启） | 对外自动发号、脚本批量发放、页面「随机生成」按钮 | 会带 `PREFIX`（当前 `tmp`） |
-| `POST /admin/new_address` | 站点密码 + `x-admin-auth: <管理密码>` | 后台手工建号、你自己的发放服务 | 由 `enablePrefix` 控制，不传则不加 |
+| `POST /api/new_address` | **无鉴权**（当前开放，网页端直接可用） | 对外自动发号、脚本批量发放、页面「随机生成」按钮 | 会带 `PREFIX`（当前 `tmp`） |
+| `POST /admin/new_address` | `x-admin-auth: <管理密码>` | 后台手工建号、你自己的发放服务 | 由 `enablePrefix` 控制，不传则不加 |
 
-**对外提供自动发号服务，用第一个。** 它不需要用户登录，一次请求返回一个完整可用的邮箱地址 + 访问 JWT。
+**对外提供自动发号服务，用第一个。** 它不需要登录，一次请求返回一个完整可用的邮箱地址 + 访问 JWT。
+
+> **当前的防盗刷策略**：网页端不上锁（不弹站点密码框），接口层由 **Cloudflare WAF 限流规则**在边缘拦截。
+> 站点访问密码（`x-custom-auth`）已改为**默认关闭**，需要时把 Variable `ENABLE_SITE_PASSWORD` 设为 `true` 即可一键上锁，详见 [第 7 节](#7-防盗刷配置)。
 
 ---
 
@@ -25,12 +28,11 @@
 ```
 POST https://mail.ventiecho.com/api/new_address
 Content-Type: application/json
-x-custom-auth: <站点访问密码>
 ```
 
-> **`x-custom-auth` 是全局站点密码**（`PASSWORDS`，来自 Secret `SITE_PASSWORDS`）。
-> 除 `/open_api/` 与 `/telegram/` 外，所有接口都必须带，缺失返回 `401`。
-> 网页端会在 `Header` 弹出站点密码框，输一次存本地后自动带上；**脚本调用必须显式加这个头**。
+> **当前无需任何鉴权头**，匿名即可调用。
+> 若你把 Variable `ENABLE_SITE_PASSWORD` 设成了 `true`，则除 `/open_api/` 与 `/telegram/` 外的所有接口都必须带
+> `x-custom-auth: <站点密码>`，缺失返回 `401`；网页端会在 `Header` 弹出密码框，输一次存本地后自动带上。
 
 **请求体（所有字段都可选，传 `{}` 也行）**
 
@@ -69,7 +71,6 @@ x-custom-auth: <站点访问密码>
 ```bash
 curl -X POST https://mail.ventiecho.com/api/new_address \
   -H "Content-Type: application/json" \
-  -H "x-custom-auth: <站点访问密码>" \
   -d '{"enableRandomSubdomain": true}'
 ```
 
@@ -78,7 +79,6 @@ curl -X POST https://mail.ventiecho.com/api/new_address \
 ```bash
 curl -X POST https://mail.ventiecho.com/api/new_address \
   -H "Content-Type: application/json" \
-  -H "x-custom-auth: <站点访问密码>" \
   -d '{"name": "signup", "enableRandomSubdomain": true}'
 ```
 
@@ -87,7 +87,6 @@ curl -X POST https://mail.ventiecho.com/api/new_address \
 ```bash
 curl -X POST https://mail.ventiecho.com/api/new_address \
   -H "Content-Type: application/json" \
-  -H "x-custom-auth: <站点访问密码>" \
   -d '{"name": "signup", "domain": "demo.ventiecho.com"}'
 ```
 
@@ -97,12 +96,10 @@ curl -X POST https://mail.ventiecho.com/api/new_address \
 import requests
 
 BASE = "https://mail.ventiecho.com"
-SITE_AUTH = "你的站点访问密码"      # x-custom-auth
 
 def issue_address(name=None, random_subdomain=True):
     r = requests.post(
         f"{BASE}/api/new_address",
-        headers={"x-custom-auth": SITE_AUTH},
         json={"name": name, "enableRandomSubdomain": random_subdomain},
         timeout=20,
     )
@@ -132,7 +129,6 @@ print(addr["address"], addr["jwt"])
 ```
 POST https://mail.ventiecho.com/admin/new_address
 Content-Type: application/json
-x-custom-auth: <站点访问密码>
 x-admin-auth: <管理密码>
 ```
 
@@ -154,7 +150,6 @@ x-admin-auth: <管理密码>
 ```bash
 curl -X POST https://mail.ventiecho.com/admin/new_address \
   -H "Content-Type: application/json" \
-  -H "x-custom-auth: <站点访问密码>" \
   -H "x-admin-auth: <管理密码>" \
   -d '{"name": "ops", "enablePrefix": false, "enableRandomSubdomain": true}'
 ```
@@ -163,7 +158,7 @@ curl -X POST https://mail.ventiecho.com/admin/new_address \
 { "address": "ops@4w9maht0.ventiecho.com", "jwt": "...", "password": null, "address_id": 43 }
 ```
 
-未带 `x-custom-auth` 或 `x-admin-auth` → `401`。
+未带 `x-admin-auth`（或站点密码开启时未带 `x-custom-auth`）→ `401`。
 
 ---
 
@@ -251,42 +246,48 @@ curl https://mail.ventiecho.com/api/mails \
 # 匿名接口（/api/new_address，带 tmp 前缀）
 python3 scripts/issue_address.py \
   --base-url https://mail.ventiecho.com \
-  --mode public --site-auth <站点访问密码> \
+  --mode public \
   --count 100 --random-subdomain --out addresses.jsonl
 
 # 管理端接口（/admin/new_address，不带前缀）
 python3 scripts/issue_address.py \
   --base-url https://mail.ventiecho.com \
-  --mode admin --admin-auth <管理密码> --site-auth <站点访问密码> \
+  --mode admin --admin-auth <管理密码> \
   --count 100 --random-subdomain --out addresses.jsonl
 ```
 
 常用参数：`--count` 数量、`--name` 固定用户名（留空随机）、`--domain` 指定域名、`--enable-prefix` 加 `tmp` 前缀、`--no-random-subdomain` 关闭随机子域名、`--workers` 并发数（默认 8）、`--out` 输出 `.jsonl` 或 `.csv`。
 默认 `--mode admin` 且随机子域名已开启。
 
-## 7. 防盗刷配置（当前方案：站点密码）
+## 7. 防盗刷配置（当前方案：网页端开放 + WAF 边缘限流）
 
-### 已启用：全站访问密码 `x-custom-auth`
+### 当前状态：网页端不上锁
 
-Secret `SITE_PASSWORDS`（JSON 数组）→ `wrangler.toml` 的 `PASSWORDS` → 全局中间件校验。
+- `SITE_PASSWORDS` 已**停止下发**，`wrangler.toml` 里不再写入 `PASSWORDS`，打开网页**不会弹站点密码框**，页面所有功能（含「随机生成」按钮）直接可用
+- 防盗刷交给 **Cloudflare WAF 限流规则**：它在 Worker **之前**拦截，不消耗 Worker 调用，也能防止打满 D1
+- 管理端 `/admin/*` 仍然只认 `x-admin-auth`，与站点密码是否开启无关
 
-- 命中范围：**除 `/open_api/` 和 `/telegram/` 之外的所有接口**（`/api/*`、`/admin/*`、`/user_api/*`、`/external/*`）
-- 静态页面**不受影响**：没有 `.` 的路径直接走 `ASSETS.fetch` 返回，不校验密码，所以页面打得开、资源加载得了
-- 网页端会弹站点密码框（`POST /open_api/site_login` 校验，密码存本地），输一次后所有请求自动带上
-- 不知道密码 = 页面能看、一个邮箱都建不出来、收不到任何信
+> 站点密码**不是删掉了，是改成默认关闭的开关**（`scripts/gen-wrangler.mjs` 里的 `ENABLE_SITE_PASSWORD`，默认 `false`）。
+> 想临时全站上锁（被扫、要停服、排查期）：在 `.github/workflows/deploy.yml` 的 `env` 里加一行
+> `ENABLE_SITE_PASSWORD: ${{ vars.ENABLE_SITE_PASSWORD || 'true' }}`，再配好 Secret `SITE_PASSWORDS`，
+> 重跑 `Deploy Temp Email` 即恢复全站 `x-custom-auth` 校验；删掉这行再部署就还原。（workflow 文件只能在
+> GitHub 网页上改，或给我一个带 `workflow` scope 的 PAT。）
 
-**豁免路径说明**：`/open_api/site_login` 是登录入口，必须豁免否则死锁；`/open_api/settings` 会返回站点基础配置（域名列表等），不含凭据。
+站点密码开启时的行为（备查）：命中范围为除 `/open_api/` 和 `/telegram/` 外的所有接口；
+静态页面不受影响（没有 `.` 的路径直接走 `ASSETS.fetch`）；网页端弹密码框，`POST /open_api/site_login` 校验后密码存本地；
+`/open_api/site_login` 是登录入口本身必须豁免，否则死锁。
 
 ### 为什么不用另外几个方案
 
 | 方案 | 结论 |
 | --- | --- |
-| `DISABLE_ANONYMOUS_USER_CREATE_EMAIL=true` | 要求先登录拿 `x-user-token`，自己后端调用变复杂；且站点密码已经挡在更前面，没必要叠 |
+| `DISABLE_ANONYMOUS_USER_CREATE_EMAIL=true` | 要求先登录拿 `x-user-token`，自己后端调用变复杂，且网页端访客也建不了号——与"网页端开放"目标冲突 |
+| 站点访问密码 `x-custom-auth` | 最硬，但**网页端会弹密码框**，访客用不了。现已改为默认关闭，仅作为临时上锁开关保留 |
 | Workers Rate Limiting binding（`ENABLE_RATE_LIMIT`） | **不建议当主防线**。它是 per-isolate 本地计数、最终一致，官方明说"不作为精确计费系统"。有实测设 5 次/60 秒、连打 40 次只拦下 7 个，挡不住真盗刷 |
-| KV 每日限额 + IP 黑名单 | 需要建 KV 命名空间并在管理后台配置；免费版 KV 只有 1000 次写/天，而每次发号都要写一次计数，容易把自己卡死。站点密码场景下收益不大 |
-| **WAF Rate limiting rule（Cloudflare 边缘）** | **推荐作为第二层**。在 Worker 之前拦截，不消耗 Worker 调用，比 binding 严格得多 |
+| KV 每日限额 + IP 黑名单 | 需要建 KV 命名空间并在管理后台配置；免费版 KV 只有 1000 次写/天，而**每次请求都要写一次计数**，容易把自己卡死。Workers 付费版才值得开 |
+| Cloudflare Turnstile | **对网页端最友好**：配置 `CF_TURNSTILE_SITE_KEY` / `CF_TURNSTILE_SECRET_KEY` 后，页面出现人机验证、脚本必须带 `cf_token`。用户无感、机器人被挡，是"网页开放 + 防刷"的正解。需要你自己去 dash 建一个 Turnstile 站点拿密钥 |
 
-### 第二层：Cloudflare WAF 限流规则（需手动在控制台创建）
+### 主防线：Cloudflare WAF 限流规则（需手动在控制台创建）
 
 `dash → ventiecho.com → Security → WAF → Rate limiting rules → Create rule`
 
@@ -302,9 +303,13 @@ Secret `SITE_PASSWORDS`（JSON 数组）→ `wrangler.toml` 的 `PASSWORDS` → 
 > 免费版 zone 的限流统计窗口固定为 10 秒，且部分匹配字段受限；如果表达式里 `http.request.method` 不可用，就用上面的纯 path 匹配即可（`/api/new_address` 只有 POST 语义）。
 > 自己脚本要批量发号时，把阈值调到 60 以上，或者发完临时关掉。
 
-### 改站点密码
+### 站点密码开关
 
-`Settings → Secrets and variables → Actions → SITE_PASSWORDS` 改成 `["新密码"]`（JSON 数组，可多个），然后重跑 `Deploy Temp Email`。
+| 想做的事 | 操作 |
+| --- | --- |
+| 恢复全站上锁 | `deploy.yml` 的 `env` 加 `ENABLE_SITE_PASSWORD: ${{ vars.ENABLE_SITE_PASSWORD \|\| 'true' }}` → 重跑部署 |
+| 回到网页端开放 | 删掉上面那行（默认就是 `false`）→ 重跑部署 |
+| 改密码本身 | `Settings → Secrets and variables → Actions → SITE_PASSWORDS` 改成 `["新密码"]`（JSON 数组，可多个）→ 重跑部署 |
 
 ### 其它
 
