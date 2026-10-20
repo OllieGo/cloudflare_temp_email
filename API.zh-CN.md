@@ -11,10 +11,10 @@
 
 | 接口 | 鉴权 | 用途 | 前缀 |
 | --- | --- | --- | --- |
-| `POST /api/new_address` | **无需鉴权**（可匿名调用） | 对外自动发号、脚本批量发放、页面「随机生成」按钮 | 会带 `PREFIX`（当前 `tmp`） |
-| `POST /admin/new_address` | 请求头 `x-admin-auth: <管理密码>` | 后台手工建号、你自己的发放服务 | 由 `enablePrefix` 控制，不传则不加 |
+| `POST /api/new_address` | **站点密码** `x-custom-auth`（已开启） | 对外自动发号、脚本批量发放、页面「随机生成」按钮 | 会带 `PREFIX`（当前 `tmp`） |
+| `POST /admin/new_address` | 站点密码 + `x-admin-auth: <管理密码>` | 后台手工建号、你自己的发放服务 | 由 `enablePrefix` 控制，不传则不加 |
 
-**对外提供自动发号服务，用第一个。** 它不需要登录，一次请求返回一个完整可用的邮箱地址 + 访问 JWT。
+**对外提供自动发号服务，用第一个。** 它不需要用户登录，一次请求返回一个完整可用的邮箱地址 + 访问 JWT。
 
 ---
 
@@ -25,7 +25,12 @@
 ```
 POST https://mail.ventiecho.com/api/new_address
 Content-Type: application/json
+x-custom-auth: <站点访问密码>
 ```
+
+> **`x-custom-auth` 是全局站点密码**（`PASSWORDS`，来自 Secret `SITE_PASSWORDS`）。
+> 除 `/open_api/` 与 `/telegram/` 外，所有接口都必须带，缺失返回 `401`。
+> 网页端会在 `Header` 弹出站点密码框，输一次存本地后自动带上；**脚本调用必须显式加这个头**。
 
 **请求体（所有字段都可选，传 `{}` 也行）**
 
@@ -64,6 +69,7 @@ Content-Type: application/json
 ```bash
 curl -X POST https://mail.ventiecho.com/api/new_address \
   -H "Content-Type: application/json" \
+  -H "x-custom-auth: <站点访问密码>" \
   -d '{"enableRandomSubdomain": true}'
 ```
 
@@ -72,6 +78,7 @@ curl -X POST https://mail.ventiecho.com/api/new_address \
 ```bash
 curl -X POST https://mail.ventiecho.com/api/new_address \
   -H "Content-Type: application/json" \
+  -H "x-custom-auth: <站点访问密码>" \
   -d '{"name": "signup", "enableRandomSubdomain": true}'
 ```
 
@@ -80,6 +87,7 @@ curl -X POST https://mail.ventiecho.com/api/new_address \
 ```bash
 curl -X POST https://mail.ventiecho.com/api/new_address \
   -H "Content-Type: application/json" \
+  -H "x-custom-auth: <站点访问密码>" \
   -d '{"name": "signup", "domain": "demo.ventiecho.com"}'
 ```
 
@@ -89,10 +97,12 @@ curl -X POST https://mail.ventiecho.com/api/new_address \
 import requests
 
 BASE = "https://mail.ventiecho.com"
+SITE_AUTH = "你的站点访问密码"      # x-custom-auth
 
 def issue_address(name=None, random_subdomain=True):
     r = requests.post(
         f"{BASE}/api/new_address",
+        headers={"x-custom-auth": SITE_AUTH},
         json={"name": name, "enableRandomSubdomain": random_subdomain},
         timeout=20,
     )
@@ -122,7 +132,8 @@ print(addr["address"], addr["jwt"])
 ```
 POST https://mail.ventiecho.com/admin/new_address
 Content-Type: application/json
-x-admin-auth: <ADMIN_PASSWORDS 之一>
+x-custom-auth: <站点访问密码>
+x-admin-auth: <管理密码>
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
@@ -143,7 +154,8 @@ x-admin-auth: <ADMIN_PASSWORDS 之一>
 ```bash
 curl -X POST https://mail.ventiecho.com/admin/new_address \
   -H "Content-Type: application/json" \
-  -H "x-admin-auth: 你的管理密码" \
+  -H "x-custom-auth: <站点访问密码>" \
+  -H "x-admin-auth: <管理密码>" \
   -d '{"name": "ops", "enablePrefix": false, "enableRandomSubdomain": true}'
 ```
 
@@ -151,7 +163,7 @@ curl -X POST https://mail.ventiecho.com/admin/new_address \
 { "address": "ops@4w9maht0.ventiecho.com", "jwt": "...", "password": null, "address_id": 43 }
 ```
 
-未带或密码错误 → `401`。
+未带 `x-custom-auth` 或 `x-admin-auth` → `401`。
 
 ---
 
@@ -236,26 +248,66 @@ curl https://mail.ventiecho.com/api/mails \
 `scripts/issue_address.py`（已在仓库 `cloudflare` 分支）封装了批量调用，支持随机子域名，输出 jsonl / csv：
 
 ```bash
-# 匿名接口（/api/new_address，带 tmp 前缀，无需密码）
+# 匿名接口（/api/new_address，带 tmp 前缀）
 python3 scripts/issue_address.py \
   --base-url https://mail.ventiecho.com \
-  --mode public \
-  --count 100 \
-  --random-subdomain \
-  --out addresses.jsonl
+  --mode public --site-auth <站点访问密码> \
+  --count 100 --random-subdomain --out addresses.jsonl
 
-# 管理端接口（/admin/new_address，不带前缀，需密码）
+# 管理端接口（/admin/new_address，不带前缀）
 python3 scripts/issue_address.py \
   --base-url https://mail.ventiecho.com \
-  --mode admin --admin-auth <密码> \
+  --mode admin --admin-auth <管理密码> --site-auth <站点访问密码> \
   --count 100 --random-subdomain --out addresses.jsonl
 ```
 
 常用参数：`--count` 数量、`--name` 固定用户名（留空随机）、`--domain` 指定域名、`--enable-prefix` 加 `tmp` 前缀、`--no-random-subdomain` 关闭随机子域名、`--workers` 并发数（默认 8）、`--out` 输出 `.jsonl` 或 `.csv`。
 默认 `--mode admin` 且随机子域名已开启。
 
-## 7. 安全提醒
+## 7. 防盗刷配置（当前方案：站点密码）
 
-- `/api/new_address` **默认对全网开放**，任何人都能无限发号。要收紧就设 `DISABLE_ANONYMOUS_USER_CREATE_EMAIL=true`（改成登录用户才能建号），或在 Cloudflare 侧挂 Rate limiting / WAF 规则。
+### 已启用：全站访问密码 `x-custom-auth`
+
+Secret `SITE_PASSWORDS`（JSON 数组）→ `wrangler.toml` 的 `PASSWORDS` → 全局中间件校验。
+
+- 命中范围：**除 `/open_api/` 和 `/telegram/` 之外的所有接口**（`/api/*`、`/admin/*`、`/user_api/*`、`/external/*`）
+- 静态页面**不受影响**：没有 `.` 的路径直接走 `ASSETS.fetch` 返回，不校验密码，所以页面打得开、资源加载得了
+- 网页端会弹站点密码框（`POST /open_api/site_login` 校验，密码存本地），输一次后所有请求自动带上
+- 不知道密码 = 页面能看、一个邮箱都建不出来、收不到任何信
+
+**豁免路径说明**：`/open_api/site_login` 是登录入口，必须豁免否则死锁；`/open_api/settings` 会返回站点基础配置（域名列表等），不含凭据。
+
+### 为什么不用另外几个方案
+
+| 方案 | 结论 |
+| --- | --- |
+| `DISABLE_ANONYMOUS_USER_CREATE_EMAIL=true` | 要求先登录拿 `x-user-token`，自己后端调用变复杂；且站点密码已经挡在更前面，没必要叠 |
+| Workers Rate Limiting binding（`ENABLE_RATE_LIMIT`） | **不建议当主防线**。它是 per-isolate 本地计数、最终一致，官方明说"不作为精确计费系统"。有实测设 5 次/60 秒、连打 40 次只拦下 7 个，挡不住真盗刷 |
+| KV 每日限额 + IP 黑名单 | 需要建 KV 命名空间并在管理后台配置；免费版 KV 只有 1000 次写/天，而每次发号都要写一次计数，容易把自己卡死。站点密码场景下收益不大 |
+| **WAF Rate limiting rule（Cloudflare 边缘）** | **推荐作为第二层**。在 Worker 之前拦截，不消耗 Worker 调用，比 binding 严格得多 |
+
+### 第二层：Cloudflare WAF 限流规则（需手动在控制台创建）
+
+`dash → ventiecho.com → Security → WAF → Rate limiting rules → Create rule`
+
+| 项 | 填法 |
+| --- | --- |
+| Rule name | `Limit new_address` |
+| Expression | `http.request.uri.path eq "/api/new_address"` |
+| Characteristic | `IP` |
+| Requests / Period | `10` / `1 minute`（自己批量发号量大就调到 60 或 120） |
+| Action | `Block`（或 `Managed Challenge`） |
+| Duration | `1 minute` |
+
+> 免费版 zone 的限流统计窗口固定为 10 秒，且部分匹配字段受限；如果表达式里 `http.request.method` 不可用，就用上面的纯 path 匹配即可（`/api/new_address` 只有 POST 语义）。
+> 自己脚本要批量发号时，把阈值调到 60 以上，或者发完临时关掉。
+
+### 改站点密码
+
+`Settings → Secrets and variables → Actions → SITE_PASSWORDS` 改成 `["新密码"]`（JSON 数组，可多个），然后重跑 `Deploy Temp Email`。
+
+### 其它
+
 - 别把 `jwt` 泄露给第三方——它等价于该邮箱的完整访问权。
+- `JWT_SECRET` 改了会让所有已发放邮箱的 token 失效。
 - 子域名解决的是**地址隔离**，不是抗封。黑名单通常按注册域判定，`ventiecho.com` 被拉黑时子域名大概率一起失效；真要抗封得再加备用根域名填进 `MAIL_DOMAINS`，每个都配一遍 Email Routing。
