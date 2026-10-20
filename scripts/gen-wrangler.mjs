@@ -76,6 +76,7 @@ const generatedAdminPassword = adminPasswords.length === 0 ? rand(12) : null;
 const finalAdminPasswords = adminPasswords.length ? adminPasswords : [generatedAdminPassword];
 // 站点访问密码：默认关闭（网页端开放，不弹密码框，防盗刷交给 Cloudflare WAF 限流）。
 // 需要全站上锁时，在 deploy.yml 的 env 里传 ENABLE_SITE_PASSWORD=true 即可，无需改代码。
+// 注意：关闭时也要显式写入空数组——wrangler 不会删除 toml 里移除的变量，否则上次部署的值会残留。
 const sitePasswordEnabled = bool("ENABLE_SITE_PASSWORD", false);
 const sitePasswords = sitePasswordEnabled ? list("SITE_PASSWORDS", []) : [];
 if (!sitePasswordEnabled && list("SITE_PASSWORDS", []).length) {
@@ -139,7 +140,8 @@ putBool("ENABLE_CREATE_ADDRESS_SUBDOMAIN_MATCH", enableSubdomainMatch);
 put("RANDOM_SUBDOMAIN_DOMAINS", qa(randomSubdomainDomains));
 put("RANDOM_SUBDOMAIN_LENGTH", int("RANDOM_SUBDOMAIN_LENGTH", 8));
 putStr("JWT_SECRET", jwtSecret);
-if (sitePasswords.length) put("PASSWORDS", qa(sitePasswords));
+// 始终写入：空数组 = 关闭站点密码，同时覆盖上一次部署残留的值
+put("PASSWORDS", qa(sitePasswords));
 put("ADMIN_PASSWORDS", qa(finalAdminPasswords));
 if (env("ADMIN_CONTACT")) putStr("ADMIN_CONTACT", env("ADMIN_CONTACT"));
 putBool("ENABLE_USER_CREATE_EMAIL", bool("ENABLE_USER_CREATE_EMAIL", true));
