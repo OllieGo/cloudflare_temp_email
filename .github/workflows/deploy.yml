@@ -33,7 +33,7 @@ on:
 # main 由上游的 Upstream Sync 工作流每周自动覆盖成上游版本，任何定制提交放 main 都会被冲掉。
 # 分支名刻意叫 cloudflare 而不是 dev —— 上游自己也有一条 dev 分支，同名会混淆甚至被误同步。
   push:
-    branches: [cloudflare]
+    branches: [cloudflare, cloudflare_admin]
     paths:
       - "worker/**"
       - "frontend/**"
