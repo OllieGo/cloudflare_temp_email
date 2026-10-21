@@ -148,6 +148,8 @@ putBool("ENABLE_USER_CREATE_EMAIL", bool("ENABLE_USER_CREATE_EMAIL", true));
 // 仅管理员可创建邮箱：cloudflare_admin 分支默认开启（访客只能登录已有邮箱）
 // 关闭方式：在 deploy.yml 的 env 传 ADMIN_ONLY_CREATE_EMAIL=false，或把这里的默认值改回 false
 putBool("ADMIN_ONLY_CREATE_EMAIL", bool("ADMIN_ONLY_CREATE_EMAIL", true));
+// 隐藏右上角 Github 版本号按钮（cloudflare_admin 分支默认隐藏，取消外链跳转）
+putBool("DISABLE_SHOW_GITHUB", bool("DISABLE_SHOW_GITHUB", true));
 putBool("ENABLE_USER_DELETE_EMAIL", bool("ENABLE_USER_DELETE_EMAIL", true));
 putBool("ENABLE_AUTO_REPLY", bool("ENABLE_AUTO_REPLY", false));
 putBool("ENABLE_ADDRESS_PASSWORD", bool("ENABLE_ADDRESS_PASSWORD", false));
