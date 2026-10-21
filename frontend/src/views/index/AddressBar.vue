@@ -18,7 +18,7 @@ const router = useRouter()
 
 const {
     jwt, settings, showAddressCredential, userJwt,
-    isTelegram, addressPassword
+    isTelegram, addressPassword, openSettings
 } = useGlobalState()
 
 const { locale, t } = useScopedI18n('views.index.AddressBar')
@@ -65,7 +65,7 @@ onMounted(async () => {
                 <n-alert v-if="jwt" type="warning" :show-icon="false" :bordered="false" closable>
                     <span>{{ t('fetchAddressError') }}</span>
                 </n-alert>
-                <Login />
+                <Login :admin-only-create="!!openSettings.adminOnlyCreateEmail" />
                 <n-divider />
                 <n-button @click="onUserLogin" type="primary" block secondary strong>
                     <template #icon>

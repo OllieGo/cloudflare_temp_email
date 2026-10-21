@@ -32,6 +32,11 @@ const props = defineProps({
         },
         required: true
     },
+    // 仅管理员可创建：由父组件按 openSettings.adminOnlyCreateEmail 传入，默认 false 不影响其他入口
+    adminOnlyCreate: {
+        type: Boolean,
+        default: false
+    },
 })
 
 const message = useMessage()
@@ -39,7 +44,7 @@ const notification = useNotification()
 const router = useRouter()
 
 const {
-    jwt, loading, openSettings,
+    jwt, loading, openSettings, adminAuth,
     showAddressCredential, userSettings, addressPassword
 } = useGlobalState()
 
@@ -238,6 +243,10 @@ const domainsOptions = computed(() => {
 });
 
 const showNewAddressTab = computed(() => {
+    // 管理员专属模式：只有已登录管理员（adminAuth 非空）才显示创建入口
+    if (props.adminOnlyCreate) {
+        return !!adminAuth.value;
+    }
     if (openSettings.value.disableAnonymousUserCreateEmail
         && !userSettings.value.user_email
     ) {

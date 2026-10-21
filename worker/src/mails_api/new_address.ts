@@ -1,7 +1,7 @@
 import { Context } from 'hono'
 
 import i18n from '../i18n';
-import { getBooleanValue, getJsonSetting, checkCfTurnstile, isAddressCountLimitReached } from '../utils';
+import { getBooleanValue, getJsonSetting, checkCfTurnstile, isAddressCountLimitReached, checkIsAdmin } from '../utils';
 import { newAddress, getAddressPrefix, generateRandomName } from '../common'
 import { CONSTANTS } from '../constants'
 
@@ -9,12 +9,20 @@ const createNewAddress = async (c: Context<HonoCustomType>) => {
     const msgs = i18n.getMessagesbyContext(c);
     const userPayload = c.get("userPayload");
 
-    if (getBooleanValue(c.env.DISABLE_ANONYMOUS_USER_CREATE_EMAIL)
+    // 管理员（x-admin-auth 命中 ADMIN_PASSWORDS）始终放行，不受下面两个开关限制
+    const isAdmin = checkIsAdmin(c);
+
+    // ADMIN_ONLY_CREATE_EMAIL: 仅管理员可创建，其余一律拒绝
+    if (getBooleanValue(c.env.ADMIN_ONLY_CREATE_EMAIL) && !isAdmin) {
+        return c.text(msgs.NewAddressDisabledMsg, 403)
+    }
+
+    if (!isAdmin && getBooleanValue(c.env.DISABLE_ANONYMOUS_USER_CREATE_EMAIL)
         && !userPayload
     ) {
         return c.text(msgs.NewAddressAnonymousDisabledMsg, 403)
     }
-    if (!getBooleanValue(c.env.ENABLE_USER_CREATE_EMAIL)) {
+    if (!isAdmin && !getBooleanValue(c.env.ENABLE_USER_CREATE_EMAIL)) {
         return c.text(msgs.NewAddressDisabledMsg, 403)
     }
 

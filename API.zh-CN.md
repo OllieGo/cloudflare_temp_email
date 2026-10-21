@@ -259,7 +259,26 @@ python3 scripts/issue_address.py \
 常用参数：`--count` 数量、`--name` 固定用户名（留空随机）、`--domain` 指定域名、`--enable-prefix` 加 `tmp` 前缀、`--no-random-subdomain` 关闭随机子域名、`--workers` 并发数（默认 8）、`--out` 输出 `.jsonl` 或 `.csv`。
 默认 `--mode admin` 且随机子域名已开启。
 
-## 7. 防盗刷配置（当前方案：网页端开放 + WAF 边缘限流）
+## 7. 仅管理员可创建：`ADMIN_ONLY_CREATE_EMAIL`
+
+`cloudflare_admin` 分支新增的开关，**默认开启**。
+
+| 层 | 行为 |
+| --- | --- |
+| 前端 | `/open_api/settings` 下发 `adminOnlyCreateEmail`；首页（`AddressBar`）与简单模式（`SimpleIndex`）的 `Login.vue` 收到该标记后，**只有 `adminAuth` 非空才显示「获取新邮箱」入口**；登录已有邮箱的入口始终保留 |
+| 服务端 | `/api/new_address` 用 `checkIsAdmin()` 校验 `x-admin-auth`（命中 `ADMIN_PASSWORDS`）；未命中且开关开启 → **403** |
+
+设计要点：
+
+- **管理员始终放行**：`isAdmin` 为 true 时会跳过 `DISABLE_ANONYMOUS_USER_CREATE_EMAIL` 和 `ENABLE_USER_CREATE_EMAIL` 两个限制，所以即使以后把 `ENABLE_USER_CREATE_EMAIL` 关了，管理员照样能建
+- **管理员不用额外操作**：`frontend/src/api/index.js` 会给所有请求自动带 `x-admin-auth`，在 `/admin` 登录过之后首页创建即可直接生效
+- **只影响首页**：`Login.vue` 通过 `adminOnlyCreate` prop 控制，只有 `AddressBar` 和 `SimpleIndex` 传了它；Telegram、本地模式、用户中心等入口不受影响
+- **创建出来的地址仍带 `tmp` 前缀**：走的是 `/api/new_address`，管理员身份不改变前缀逻辑。想不加前缀请改用 `/admin/new_address`
+- 关闭方式：在 `deploy.yml` 的 `env` 里传 `ADMIN_ONLY_CREATE_EMAIL: "false"`，或把 `scripts/gen-wrangler.mjs` 里该开关的默认值改回 `false`
+
+> 前端隐藏只是体验层，**真正的拦截在服务端**。即使有人绕过 UI 直接 curl，没有 `x-admin-auth` 也是 403。
+
+## 8. 防盗刷配置（当前方案：网页端开放 + WAF 边缘限流）
 
 ### 当前状态：网页端不上锁
 

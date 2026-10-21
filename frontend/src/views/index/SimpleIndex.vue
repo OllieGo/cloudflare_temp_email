@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
     <div class="center">
         <div v-if="!settings.address">
             <n-card :bordered="false" embedded>
-                <Login />
+                <Login :admin-only-create="!!openSettings.adminOnlyCreateEmail" />
             </n-card>
         </div>
 

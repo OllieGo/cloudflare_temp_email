@@ -145,6 +145,9 @@ put("PASSWORDS", qa(sitePasswords));
 put("ADMIN_PASSWORDS", qa(finalAdminPasswords));
 if (env("ADMIN_CONTACT")) putStr("ADMIN_CONTACT", env("ADMIN_CONTACT"));
 putBool("ENABLE_USER_CREATE_EMAIL", bool("ENABLE_USER_CREATE_EMAIL", true));
+// 仅管理员可创建邮箱：cloudflare_admin 分支默认开启（访客只能登录已有邮箱）
+// 关闭方式：在 deploy.yml 的 env 传 ADMIN_ONLY_CREATE_EMAIL=false，或把这里的默认值改回 false
+putBool("ADMIN_ONLY_CREATE_EMAIL", bool("ADMIN_ONLY_CREATE_EMAIL", true));
 putBool("ENABLE_USER_DELETE_EMAIL", bool("ENABLE_USER_DELETE_EMAIL", true));
 putBool("ENABLE_AUTO_REPLY", bool("ENABLE_AUTO_REPLY", false));
 putBool("ENABLE_ADDRESS_PASSWORD", bool("ENABLE_ADDRESS_PASSWORD", false));
